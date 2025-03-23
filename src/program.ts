@@ -14,45 +14,98 @@
  * limitations under the License.
  */
 
-import { program } from 'commander';
+import { program } from "commander";
 
-import { Server } from './server';
-import * as snapshot from './tools/snapshot';
-import * as common from './tools/common';
-import * as screenshot from './tools/screenshot';
-import { console } from './resources/console';
+import { Server } from "./server";
+import * as snapshot from "./tools/snapshot";
+import * as common from "./tools/common";
+import * as screenshot from "./tools/screenshot";
+import { console } from "./resources/console";
 
-import type { LaunchOptions } from './server';
-import type { Tool } from './tools/tool';
-import type { Resource } from './resources/resource';
+import type { LaunchOptions } from "./server";
+import type { Tool } from "./tools/tool";
+import type { Resource } from "./resources/resource";
 
-const packageJSON = require('../package.json');
+const packageJSON = require("../package.json");
 
 program
-    .version('Version ' + packageJSON.version)
-    .name(packageJSON.name)
-    .option('--headless', 'Run browser in headless mode, headed by default')
-    .option('--vision', 'Run server that uses screenshots (Aria snapshots are used by default)')
-    .action(async options => {
-      const launchOptions: LaunchOptions = {
-        headless: !!options.headless,
-      };
-      const tools = options.vision ? screenshotTools : snapshotTools;
-      const server = new Server({
-        name: 'Playwright',
+  .version("Version " + packageJSON.version)
+  .name(packageJSON.name)
+  .option("--headless", "Run browser in headless mode, headed by default")
+  .option(
+    "--vision",
+    "Run server that uses screenshots (Aria snapshots are used by default)"
+  )
+  .action(async (options) => {
+    const launchOptions: LaunchOptions = {
+      headless: !!options.headless,
+    };
+    const tools = options.vision ? screenshotTools : snapshotTools;
+    const server = new Server(
+      {
+        name: "Playwright",
         version: packageJSON.version,
         tools,
         resources,
-      }, launchOptions);
-      setupExitWatchdog(server);
-      await server.start();
-    });
+      },
+      launchOptions
+    );
+    setupExitWatchdog(server);
+    await server.start();
+  });
 
 function setupExitWatchdog(server: Server) {
-  process.stdin.on('close', async () => {
-    setTimeout(() => process.exit(0), 15000);
-    await server?.stop();
-    process.exit(0);
+  let shuttingDown = false;
+  let forceExitTimeout: NodeJS.Timeout | null = null;
+
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    // Clear any existing timeout
+    if (forceExitTimeout) {
+      clearTimeout(forceExitTimeout);
+    }
+
+    // Set a timeout to force exit if graceful shutdown takes too long
+    forceExitTimeout = setTimeout(() => {
+      console.error("Forcing exit after timeout");
+      process.exit(1);
+    }, 15000);
+
+    try {
+      console.error("Server shutting down gracefully...");
+      await server?.stop();
+      console.error("Server stopped successfully");
+
+      // Clear the force exit timeout since we're exiting gracefully
+      if (forceExitTimeout) {
+        clearTimeout(forceExitTimeout);
+      }
+
+      process.exit(0);
+    } catch (error) {
+      console.error("Error during server shutdown:", error);
+      process.exit(1);
+    }
+  };
+
+  // Handle signal events (for Docker)
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  // Handle stdin close (original behavior)
+  process.stdin.on("close", shutdown);
+
+  // Handle unhandled rejections and exceptions
+  process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled Rejection:", reason);
+    shutdown();
+  });
+
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught Exception:", error);
+    shutdown();
   });
 }
 
@@ -86,8 +139,6 @@ const screenshotTools: Tool[] = [
   ...commonTools,
 ];
 
-const resources: Resource[] = [
-  console,
-];
+const resources: Resource[] = [console];
 
 program.parse(process.argv);
