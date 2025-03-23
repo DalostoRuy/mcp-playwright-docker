@@ -1,13 +1,13 @@
-FROM mcr.microsoft.com/playwright:v1.52.0-alpha-2025-03-21-jammy
+FROM mcr.microsoft.com/playwright:v1.42.1-jammy
 
+# Definir como usuário root para instalações
 USER root
-
 WORKDIR /app
 
 # Copiar arquivos de configuração
 COPY package*.json tsconfig.json ./
 
-# Instalar dependências
+# Instalar a versão específica do Playwright mencionada no package.json
 RUN npm ci
 
 # Copiar código-fonte
@@ -25,6 +25,8 @@ RUN groupadd -r mcpuser && \
     mkdir -p /home/mcpuser/Downloads && \
     chown -R mcpuser:mcpuser /home/mcpuser && \
     chown -R mcpuser:mcpuser /app
+
+USER mcpuser
 
 # Configurar variáveis de ambiente
 ENV NODE_ENV=production
