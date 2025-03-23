@@ -1,5 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.42.1-jammy
 
+USER root
+
 # Definir como usuário root para instalações
 USER root
 WORKDIR /app
@@ -25,8 +27,6 @@ RUN groupadd -r mcpuser && \
     mkdir -p /home/mcpuser/Downloads && \
     chown -R mcpuser:mcpuser /home/mcpuser && \
     chown -R mcpuser:mcpuser /app
-
-USER mcpuser
 
 # Configurar variáveis de ambiente
 ENV NODE_ENV=production
