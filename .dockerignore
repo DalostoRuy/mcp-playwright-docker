@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.github
+.vscode
+test-results
+tests
+*.md
+.eslintrc.json
+.gitignore
+Dockerfile
+.dockerignore
