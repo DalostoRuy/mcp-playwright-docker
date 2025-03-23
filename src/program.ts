@@ -20,7 +20,7 @@ import { Server } from "./server";
 import * as snapshot from "./tools/snapshot";
 import * as common from "./tools/common";
 import * as screenshot from "./tools/screenshot";
-import { console } from "./resources/console";
+import { console as consoleResource } from "./resources/console";
 
 import type { LaunchOptions } from "./server";
 import type { Tool } from "./tools/tool";
@@ -97,9 +97,9 @@ function setupExitWatchdog(
   const maxLifetimeMs = maxLifetimeSeconds * 1000;
   const maxLifetimeTimeout = setTimeout(() => {
     if (process.env.NODE_ENV !== "test") {
-      // eslint-disable-next-line no-console
-      console.error(
-        `Maximum lifetime of ${maxLifetimeSeconds} seconds reached. Shutting down.`
+      // Usando process.stderr.write em vez de console.error
+      process.stderr.write(
+        `Maximum lifetime of ${maxLifetimeSeconds} seconds reached. Shutting down.\n`
       );
       shutdown();
     }
@@ -108,9 +108,9 @@ function setupExitWatchdog(
   // 2. Tempo de inatividade
   const idleTimeoutMs = idleTimeoutSeconds * 1000;
   let idleTimer: NodeJS.Timeout | null = setTimeout(() => {
-    // eslint-disable-next-line no-console
-    console.error(
-      `No activity for ${idleTimeoutSeconds} seconds. Shutting down.`
+    // Usando process.stderr.write em vez de console.error
+    process.stderr.write(
+      `No activity for ${idleTimeoutSeconds} seconds. Shutting down.\n`
     );
     shutdown();
   }, idleTimeoutMs);
@@ -120,9 +120,9 @@ function setupExitWatchdog(
     if (idleTimer) {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        // eslint-disable-next-line no-console
-        console.error(
-          `No activity for ${idleTimeoutSeconds} seconds. Shutting down.`
+        // Usando process.stderr.write em vez de console.error
+        process.stderr.write(
+          `No activity for ${idleTimeoutSeconds} seconds. Shutting down.\n`
         );
         shutdown();
       }, idleTimeoutMs);
@@ -173,6 +173,6 @@ const screenshotTools: Tool[] = [
   ...commonTools,
 ];
 
-const resources: Resource[] = [console];
+const resources: Resource[] = [consoleResource];
 
 program.parse(process.argv);
