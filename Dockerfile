@@ -10,6 +10,11 @@ COPY package*.json tsconfig.json ./
 # Instalar a versão específica do Playwright mencionada no package.json
 RUN npm ci
 
+# Instalar explicitamente os navegadores necessários
+RUN npx playwright install chrome
+RUN npx playwright install chromium
+RUN npx playwright install firefox
+
 # Copiar código-fonte
 COPY . .
 
@@ -18,6 +23,9 @@ RUN npm run build
 
 # Limpar dependências de desenvolvimento
 RUN npm prune --production
+
+# Adicionar permissões para os navegadores
+RUN chmod -R 755 /ms-playwright/
 
 # Configurar usuário não-root para segurança
 RUN groupadd -r mcpuser && \
