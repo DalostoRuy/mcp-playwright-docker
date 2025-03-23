@@ -55,57 +55,26 @@ program
   });
 
 function setupExitWatchdog(server: Server) {
-  let shuttingDown = false;
-  let forceExitTimeout: NodeJS.Timeout | null = null;
-
-  const shutdown = async () => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-
-    // Clear any existing timeout
-    if (forceExitTimeout) {
-      clearTimeout(forceExitTimeout);
-    }
-
-    // Set a timeout to force exit if graceful shutdown takes too long
-    forceExitTimeout = setTimeout(() => {
-      console.error("Forcing exit after timeout");
-      process.exit(1);
-    }, 15000);
-
-    try {
-      console.error("Server shutting down gracefully...");
-      await server?.stop();
-      console.error("Server stopped successfully");
-
-      // Clear the force exit timeout since we're exiting gracefully
-      if (forceExitTimeout) {
-        clearTimeout(forceExitTimeout);
-      }
-
-      process.exit(0);
-    } catch (error) {
-      console.error("Error during server shutdown:", error);
-      process.exit(1);
-    }
-  };
-
-  // Handle signal events (for Docker)
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-
-  // Handle stdin close (original behavior)
-  process.stdin.on("close", shutdown);
-
-  // Handle unhandled rejections and exceptions
-  process.on("unhandledRejection", (reason) => {
-    console.error("Unhandled Rejection:", reason);
-    shutdown();
+  // Tratamento para SIGINT e SIGTERM (sinais enviados pelo Docker)
+  process.on("SIGINT", async () => {
+    // Definir timeout para forçar saída se algo travar
+    setTimeout(() => process.exit(0), 15000);
+    await server?.stop();
+    process.exit(0);
   });
 
-  process.on("uncaughtException", (error) => {
-    console.error("Uncaught Exception:", error);
-    shutdown();
+  process.on("SIGTERM", async () => {
+    // Definir timeout para forçar saída se algo travar
+    setTimeout(() => process.exit(0), 15000);
+    await server?.stop();
+    process.exit(0);
+  });
+
+  // Manter comportamento original para stdin
+  process.stdin.on("close", async () => {
+    setTimeout(() => process.exit(0), 15000);
+    await server?.stop();
+    process.exit(0);
   });
 }
 
