@@ -1,7 +1,5 @@
 FROM mcr.microsoft.com/playwright:v1.42.1-jammy
 
-USER root
-
 # Definir como usuário root para instalações
 USER root
 WORKDIR /app
