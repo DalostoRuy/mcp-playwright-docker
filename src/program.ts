@@ -36,6 +36,18 @@ program
     "--vision",
     "Run server that uses screenshots (Aria snapshots are used by default)"
   )
+  .option(
+    "--max-lifetime <seconds>",
+    "Maximum lifetime in seconds before auto-shutdown (default: 60)",
+    (s) => parseInt(s, 10),
+    60
+  )
+  .option(
+    "--idle-timeout <seconds>",
+    "Shutdown after this many seconds of inactivity (default: 30)",
+    (s) => parseInt(s, 10),
+    30
+  )
   .action(async (options) => {
     const launchOptions: LaunchOptions = {
       headless: !!options.headless,
@@ -50,31 +62,84 @@ program
       },
       launchOptions
     );
-    setupExitWatchdog(server);
+
+    setupExitWatchdog(server, options.maxLifetime, options.idleTimeout);
     await server.start();
   });
 
-function setupExitWatchdog(server: Server) {
+function setupExitWatchdog(
+  server: Server,
+  maxLifetimeSeconds: number,
+  idleTimeoutSeconds: number
+) {
+  // Flag para evitar múltiplos enceramentos
+  let isShuttingDown = false;
+
+  // Função de encerramento
+  const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    // Definir timeout para forçar saída se algo travar
+    const forceExitTimeout = setTimeout(() => process.exit(0), 15000);
+
+    try {
+      await server?.stop();
+      clearTimeout(forceExitTimeout);
+      process.exit(0);
+    } catch (error) {
+      // Em caso de erro no shutdown, forçar saída
+      process.exit(1);
+    }
+  };
+
+  // 1. Tempo máximo de vida (em milissegundos)
+  const maxLifetimeMs = maxLifetimeSeconds * 1000;
+  const maxLifetimeTimeout = setTimeout(() => {
+    if (process.env.NODE_ENV !== "test") {
+      // eslint-disable-next-line no-console
+      console.error(
+        `Maximum lifetime of ${maxLifetimeSeconds} seconds reached. Shutting down.`
+      );
+      shutdown();
+    }
+  }, maxLifetimeMs);
+
+  // 2. Tempo de inatividade
+  const idleTimeoutMs = idleTimeoutSeconds * 1000;
+  let idleTimer: NodeJS.Timeout | null = setTimeout(() => {
+    // eslint-disable-next-line no-console
+    console.error(
+      `No activity for ${idleTimeoutSeconds} seconds. Shutting down.`
+    );
+    shutdown();
+  }, idleTimeoutMs);
+
+  // Resetar o timer de inatividade quando houver dados no stdin
+  process.stdin.on("data", () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        // eslint-disable-next-line no-console
+        console.error(
+          `No activity for ${idleTimeoutSeconds} seconds. Shutting down.`
+        );
+        shutdown();
+      }, idleTimeoutMs);
+    }
+  });
+
   // Tratamento para SIGINT e SIGTERM (sinais enviados pelo Docker)
-  process.on("SIGINT", async () => {
-    // Definir timeout para forçar saída se algo travar
-    setTimeout(() => process.exit(0), 15000);
-    await server?.stop();
-    process.exit(0);
-  });
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
-  process.on("SIGTERM", async () => {
-    // Definir timeout para forçar saída se algo travar
-    setTimeout(() => process.exit(0), 15000);
-    await server?.stop();
-    process.exit(0);
-  });
+  // Quando stdin fechar
+  process.stdin.on("close", shutdown);
 
-  // Manter comportamento original para stdin
-  process.stdin.on("close", async () => {
-    setTimeout(() => process.exit(0), 15000);
-    await server?.stop();
-    process.exit(0);
+  // Limpar temporizadores se o processo encerrar de forma inesperada
+  process.on("exit", () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    clearTimeout(maxLifetimeTimeout);
   });
 }
 
